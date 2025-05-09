@@ -7,7 +7,7 @@ import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplet
 import * as Location from "expo-location";
 import axios from "axios";
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyCvxSNDnpBWjhN3k44U-XTnJ5JVmx5r90w";
+const GOOGLE_MAPS_API_KEY = 
 
 export default function MapsScreen({ route }) {
   const [location, setLocation] = useState(null);
