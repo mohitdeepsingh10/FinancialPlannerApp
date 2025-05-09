@@ -38,6 +38,15 @@ const currencyCountryMap = {
   THB: "Thailand",
   SAR: "Saudi Arabia",
   AED: "United Arab Emirates",
+  CZK: "Czech rep",
+  DKK: "Denmark",
+  HRK: "Croatia",
+  HUF: "Hungary",
+  ILS: "Israel",
+  ISK: "Iceland",
+  PLN: "Poland",
+  RON: "Romania",
+  TRY: "Turkey",
 };
 
 export default function CurrencyScreen() {

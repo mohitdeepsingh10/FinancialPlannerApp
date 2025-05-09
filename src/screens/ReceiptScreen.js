@@ -1,110 +1,145 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
   Image,
   FlatList,
-  TouchableOpacity,
-  StyleSheet,
   Alert,
+  Modal,
 } from "react-native";
-import { Text, Button } from "react-native-paper";
-import { Camera } from "expo-camera";
-import * as MediaLibrary from "expo-media-library";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 export default function ReceiptScreen() {
-  const [hasCameraPermission, setHasCameraPermission] = useState(null);
-  const [hasMediaLibraryPermission, setHasMediaLibraryPermission] =
-    useState(null);
-  const [camera, setCamera] = useState(null);
-  const [photo, setPhoto] = useState(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [receipts, setReceipts] = useState([]);
-  const [cameraType, setCameraType] = useState(Camera.Constants?.Type?.back);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const cameraRef = useRef(null);
 
   useEffect(() => {
-    (async () => {
-      const { status: cameraStatus } =
-        await ExpoCamera.requestCameraPermissionsAsync();
-      const { status: mediaLibraryStatus } =
-        await MediaLibrary.requestPermissionsAsync();
-
-      setHasCameraPermission(cameraStatus === "granted");
-      setHasMediaLibraryPermission(mediaLibraryStatus === "granted");
-
-      if (cameraStatus !== "granted" || mediaLibraryStatus !== "granted") {
-        Alert.alert(
-          "Permissions Required",
-          "Camera and media permissions are needed."
-        );
-      }
-
-      loadReceipts();
-    })();
+    loadReceipts();
   }, []);
 
-  const takePicture = async () => {
-    if (camera) {
-      const photo = await camera.takePictureAsync();
-      setPhoto(photo.uri);
-    }
-  };
-
-  const saveReceipt = async () => {
-    if (!photo) {
-      Alert.alert("No photo taken", "Please take a picture first.");
-      return;
-    }
-
-    const newReceipts = [...receipts, photo];
-    setReceipts(newReceipts);
-
-    await AsyncStorage.setItem("receipts", JSON.stringify(newReceipts));
-    setPhoto(null);
-    Alert.alert("Saved", "Receipt saved successfully.");
-  };
-
   const loadReceipts = async () => {
-    const storedReceipts = await AsyncStorage.getItem("receipts");
-    if (storedReceipts) {
-      setReceipts(JSON.parse(storedReceipts));
+    const stored = await AsyncStorage.getItem("receipts");
+    if (stored) {
+      setReceipts(JSON.parse(stored));
     }
   };
+
+  const saveReceipts = async (data) => {
+    setReceipts(data);
+    await AsyncStorage.setItem("receipts", JSON.stringify(data));
+  };
+
+  const takePicture = async () => {
+    if (!cameraRef.current) return;
+
+    try {
+      const photo = await cameraRef.current.takePictureAsync();
+      const timestamp = new Date().toLocaleString();
+      const newReceipt = { uri: photo.uri, timestamp };
+      const updatedReceipts = [...receipts, newReceipt];
+
+      await saveReceipts(updatedReceipts);
+    } catch (err) {
+      console.error("Camera error:", err);
+      Alert.alert("Error", "Could not take picture.");
+    }
+  };
+
+  const deleteReceipt = (index) => {
+    Alert.alert(
+      "Delete Receipt",
+      "Are you sure you want to delete this receipt?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            const updated = [...receipts];
+            updated.splice(index, 1);
+            await saveReceipts(updated);
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+  if (!cameraPermission?.granted) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.permissionText}>
+          Camera access is required to use this feature.
+        </Text>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={requestCameraPermission}
+        >
+          <Text style={styles.buttonText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>📸 Receipt Storage</Text>
 
-      {photo ? (
-        <>
-          <Image source={{ uri: photo }} style={styles.preview} />
-          <Button mode="contained" onPress={saveReceipt} style={styles.button}>
-            Save Receipt
-          </Button>
-        </>
-      ) : hasCameraPermission === null ? (
-        <Text>Requesting Camera Permission...</Text>
-      ) : hasCameraPermission === false ? (
-        <Text>No access to camera</Text>
-      ) : (
-        <Camera
-          ref={(ref) => setCamera(ref)}
-          style={styles.camera}
-          type={cameraType}
-        />
-      )}
+      <CameraView
+        ref={cameraRef}
+        style={styles.camera}
+        facing="back"
+        enableTorch={false}
+      />
 
-      <Button mode="contained" onPress={takePicture} style={styles.button}>
-        Take Picture
-      </Button>
+      <TouchableOpacity style={styles.button} onPress={takePicture}>
+        <Text style={styles.buttonText}>Take Picture</Text>
+      </TouchableOpacity>
 
       <Text style={styles.subTitle}>Saved Receipts:</Text>
       <FlatList
         data={receipts}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <Image source={{ uri: item }} style={styles.receiptImage} />
+        keyExtractor={(_, index) => index.toString()}
+        renderItem={({ item, index }) => (
+          <View style={styles.receiptRow}>
+            <TouchableOpacity
+              style={styles.receiptButton}
+              onPress={() => setSelectedReceipt(item)}
+            >
+              <Text style={styles.timestamp}>{item.timestamp}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => deleteReceipt(index)}
+              style={styles.deleteButton}
+            >
+              <Text style={styles.deleteText}>✕</Text>
+            </TouchableOpacity>
+          </View>
         )}
       />
+
+      {/* Modal to show image when a receipt is selected */}
+      <Modal visible={!!selectedReceipt} transparent animationType="slide">
+        <View style={styles.modalContainer}>
+          <Image
+            source={{ uri: selectedReceipt?.uri }}
+            style={styles.modalImage}
+          />
+          <TouchableOpacity
+            onPress={() => setSelectedReceipt(null)}
+            style={styles.closeModal}
+          >
+            <Text style={styles.buttonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -112,36 +147,89 @@ export default function ReceiptScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: "#f5f5f5",
+    padding: 15,
+    backgroundColor: "#fff",
+  },
+  camera: {
+    height: 300,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   title: {
     fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 10,
     textAlign: "center",
+    marginBottom: 10,
   },
   subTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginTop: 20,
-  },
-  camera: {
-    height: 300,
-    borderRadius: 10,
-  },
-  preview: {
-    width: "100%",
-    height: 300,
-    borderRadius: 10,
     marginBottom: 10,
   },
-  receiptImage: {
-    width: 100,
-    height: 100,
-    margin: 5,
-  },
   button: {
+    backgroundColor: "#007bff",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
     marginTop: 10,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  permissionText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  receiptRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  receiptButton: {
+    flex: 1,
+    backgroundColor: "#f1f1f1",
+    padding: 10,
+    borderRadius: 6,
+  },
+  deleteButton: {
+    marginLeft: 10,
+    padding: 8,
+  },
+  deleteText: {
+    color: "#ff4444",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  timestamp: {
+    fontSize: 14,
+    color: "#333",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#000000aa",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalImage: {
+    width: "90%",
+    height: "70%",
+    borderRadius: 10,
+  },
+  closeModal: {
+    marginTop: 20,
+    backgroundColor: "#007bff",
+    padding: 12,
+    borderRadius: 8,
   },
 });

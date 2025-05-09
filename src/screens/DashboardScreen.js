@@ -20,12 +20,12 @@ function MapsStack() {
       <Stack.Screen
         name="MapsSelection"
         component={MapsSelectionScreen}
-        options={{ title: "Find Places" }}
+        options={{ title: "Mommy Financial Planner" }}
       />
       <Stack.Screen
         name="MapsScreen"
         component={MapsScreen}
-        options={{ title: "Map" }}
+        options={{ title: "Mommy Financial Planner" }}
       />
     </Stack.Navigator>
   );
@@ -35,6 +35,7 @@ export default function DashboardScreen({ navigation }) {
   return (
     <Tab.Navigator
       screenOptions={{
+        headerTitle: "Mommy Financial Planner",
         headerRight: () => (
           <TouchableOpacity
             style={{ marginRight: 15 }}
@@ -46,7 +47,7 @@ export default function DashboardScreen({ navigation }) {
       }}
     >
       <Tab.Screen
-        name="Home"
+        name="Home Screen"
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
